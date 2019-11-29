@@ -96,6 +96,9 @@ GTEST_DECLARE_bool_(break_on_failure);
 // and logs them as failures.
 GTEST_DECLARE_bool_(catch_exceptions);
 
+// This flag minimizes the output for successful tests
+GTEST_DECLARE_bool_(quiet);
+
 // This flag enables using colors in terminal output. Available values are
 // "yes" to enable colors, "no" (disable colors), or "auto" (the default)
 // to let Google Test decide.

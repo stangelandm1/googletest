@@ -228,6 +228,11 @@ GTEST_DEFINE_bool_(catch_exceptions,
                    "True if and only if " GTEST_NAME_
                    " should catch exceptions and treat them as test failures.");
 
+GTEST_DEFINE_bool_(quiet,
+                   internal::BoolFromGTestEnv("quiet", false),
+                   "True if and only if " GTEST_NAME_
+                   "Minimize test output.");
+
 GTEST_DEFINE_string_(
     color,
     internal::StringFromGTestEnv("color", "auto"),
@@ -349,6 +354,16 @@ uint32_t Random::Generate(uint32_t range) {
   // it's simple, and a linear congruential generator isn't too good
   // to begin with.
   return state_ % range;
+}
+
+static void GTestPrintQuiteProgress(bool restartColumn = false ) {
+  static int columnCount = 0;
+  if( restartColumn ) {
+    columnCount = 0;
+    return;
+  }
+  ColoredPrintf(COLOR_GREEN, 80 == ++columnCount ? ".\n" : "." );
+  columnCount %= 80;
 }
 
 // GTestIsInitialized() returns true if and only if the user has initialized
@@ -2903,11 +2918,22 @@ namespace internal {
 // Prints a TestPartResult to an std::string.
 static std::string PrintTestPartResultToString(
     const TestPartResult& test_part_result) {
-  return (Message()
+  if( GTEST_FLAG(quiet) ) {
+    GTestPrintQuiteProgress(true);
+    return (Message()
+          << "\n"
           << internal::FormatFileLocation(test_part_result.file_name(),
                                           test_part_result.line_number())
           << " " << TestPartResultTypeToString(test_part_result.type())
           << test_part_result.message()).GetString();
+  } else {
+    return (Message()
+          << internal::FormatFileLocation(test_part_result.file_name(),
+                                          test_part_result.line_number())
+          << " " << TestPartResultTypeToString(test_part_result.type())
+          << test_part_result.message()).GetString();
+
+  }
 }
 
 // Prints a TestPartResult.
@@ -3179,6 +3205,7 @@ void PrettyUnitTestResultPrinter::OnTestIterationStart(
 
 void PrettyUnitTestResultPrinter::OnEnvironmentsSetUpStart(
     const UnitTest& /*unit_test*/) {
+  if( GTEST_FLAG(quiet) ) return;
   ColoredPrintf(COLOR_GREEN,  "[----------] ");
   printf("Global test environment set-up.\n");
   fflush(stdout);
@@ -3186,6 +3213,7 @@ void PrettyUnitTestResultPrinter::OnEnvironmentsSetUpStart(
 
 #ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
 void PrettyUnitTestResultPrinter::OnTestCaseStart(const TestCase& test_case) {
+  if( GTEST_FLAG(quiet) ) return;
   const std::string counts =
       FormatCountableNoun(test_case.test_to_run_count(), "test", "tests");
   ColoredPrintf(COLOR_GREEN, "[----------] ");
@@ -3214,6 +3242,7 @@ void PrettyUnitTestResultPrinter::OnTestSuiteStart(
 #endif  // GTEST_REMOVE_LEGACY_TEST_CASEAPI_
 
 void PrettyUnitTestResultPrinter::OnTestStart(const TestInfo& test_info) {
+  if( GTEST_FLAG(quiet) ) return;
   ColoredPrintf(COLOR_GREEN,  "[ RUN      ] ");
   PrintTestName(test_info.test_suite_name(), test_info.name());
   printf("\n");
@@ -3237,7 +3266,12 @@ void PrettyUnitTestResultPrinter::OnTestPartResult(
 
 void PrettyUnitTestResultPrinter::OnTestEnd(const TestInfo& test_info) {
   if (test_info.result()->Passed()) {
+    if( GTEST_FLAG(quiet) ) {
+      GTestPrintQuiteProgress();
+      return;
+    }
     ColoredPrintf(COLOR_GREEN, "[       OK ] ");
+
   } else if (test_info.result()->Skipped()) {
     ColoredPrintf(COLOR_GREEN, "[  SKIPPED ] ");
   } else {
@@ -3258,7 +3292,7 @@ void PrettyUnitTestResultPrinter::OnTestEnd(const TestInfo& test_info) {
 
 #ifndef GTEST_REMOVE_LEGACY_TEST_CASEAPI_
 void PrettyUnitTestResultPrinter::OnTestCaseEnd(const TestCase& test_case) {
-  if (!GTEST_FLAG(print_time)) return;
+  if (!GTEST_FLAG(print_time) || GTEST_FLAG(quiet)) return;
 
   const std::string counts =
       FormatCountableNoun(test_case.test_to_run_count(), "test", "tests");
@@ -3269,7 +3303,7 @@ void PrettyUnitTestResultPrinter::OnTestCaseEnd(const TestCase& test_case) {
 }
 #else
 void PrettyUnitTestResultPrinter::OnTestSuiteEnd(const TestSuite& test_suite) {
-  if (!GTEST_FLAG(print_time)) return;
+  if (!GTEST_FLAG(print_time) || GTEST_FLAG(quiet) ) return;
 
   const std::string counts =
       FormatCountableNoun(test_suite.test_to_run_count(), "test", "tests");
@@ -3282,6 +3316,8 @@ void PrettyUnitTestResultPrinter::OnTestSuiteEnd(const TestSuite& test_suite) {
 
 void PrettyUnitTestResultPrinter::OnEnvironmentsTearDownStart(
     const UnitTest& /*unit_test*/) {
+  if( GTEST_FLAG(quiet) ) return;
+
   ColoredPrintf(COLOR_GREEN,  "[----------] ");
   printf("Global test environment tear-down\n");
   fflush(stdout);
@@ -3306,6 +3342,10 @@ void PrettyUnitTestResultPrinter::PrintFailedTests(const UnitTest& unit_test) {
       }
       ColoredPrintf(COLOR_RED, "[  FAILED  ] ");
       printf("%s.%s", test_suite.name(), test_info.name());
+      for (int i = 0; i < test_info.result()->total_part_count(); ++i) {
+        const TestPartResult& part = test_info.result()->GetTestPartResult(i);
+        PrintTestPartResultToString( part );
+      }
       PrintFullTestCommentIfPresent(test_info);
       printf("\n");
     }
@@ -3338,6 +3378,7 @@ void PrettyUnitTestResultPrinter::PrintSkippedTests(const UnitTest& unit_test) {
 
 void PrettyUnitTestResultPrinter::OnTestIterationEnd(const UnitTest& unit_test,
                                                      int /*iteration*/) {
+  if( GTEST_FLAG(quiet) ) printf("\n");
   ColoredPrintf(COLOR_GREEN,  "[==========] ");
   printf("%s from %s ran.",
          FormatTestCount(unit_test.test_to_run_count()).c_str(),
@@ -3347,9 +3388,10 @@ void PrettyUnitTestResultPrinter::OnTestIterationEnd(const UnitTest& unit_test,
            internal::StreamableToString(unit_test.elapsed_time()).c_str());
   }
   printf("\n");
-  ColoredPrintf(COLOR_GREEN,  "[  PASSED  ] ");
-  printf("%s.\n", FormatTestCount(unit_test.successful_test_count()).c_str());
-
+  if( !GTEST_FLAG(quiet) ) {
+    ColoredPrintf(COLOR_GREEN,  "[  PASSED  ] ");
+    printf("%s.\n", FormatTestCount(unit_test.successful_test_count()).c_str());
+  }
   const int skipped_test_count = unit_test.skipped_test_count();
   if (skipped_test_count > 0) {
     ColoredPrintf(COLOR_GREEN, "[  SKIPPED ] ");
@@ -5948,6 +5990,7 @@ static bool ParseGoogleTestFlag(const char* const arg) {
                     &GTEST_FLAG(break_on_failure)) ||
       ParseBoolFlag(arg, kCatchExceptionsFlag,
                     &GTEST_FLAG(catch_exceptions)) ||
+      ParseBoolFlag(arg, kQuietFlag, &GTEST_FLAG(quiet)) ||
       ParseStringFlag(arg, kColorFlag, &GTEST_FLAG(color)) ||
       ParseStringFlag(arg, kDeathTestStyleFlag,
                       &GTEST_FLAG(death_test_style)) ||

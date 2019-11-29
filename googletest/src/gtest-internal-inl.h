@@ -83,6 +83,7 @@ GTEST_API_ extern const TypeId kTestTypeIdInGoogleTest;
 const char kAlsoRunDisabledTestsFlag[] = "also_run_disabled_tests";
 const char kBreakOnFailureFlag[] = "break_on_failure";
 const char kCatchExceptionsFlag[] = "catch_exceptions";
+const char kQuietFlag[] = "quiet";
 const char kColorFlag[] = "color";
 const char kFilterFlag[] = "filter";
 const char kListTestsFlag[] = "list_tests";
